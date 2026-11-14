@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>RSVP Ledger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=IM+Fell+English+SC&display=swap">
+<style>
+@font-face {
+  font-family: "Cloister Black";
+  src: url("assets/CloisterBlack.ttf") format("truetype");
+  font-display: block;
+}
+/* Layout: a private ledger. Totals across the top, then every household as a row you can filter and search. Same palette as the site, tuned for scanning. */
+:root {
+  --ink: #0c0a09;
+  --panel: #150d0d;
+  --line: color-mix(in srgb, #b4925a 22%, transparent);
+  --burgundy-2: #5e1524;
+  --brass: #b4925a;
+  --brass-dim: #7a6340;
+  --bone: #e9dfcb;
+  --bone-dim: #b3a78f;
+  --yes: #9fbf8f;          /* attending */
+  --no: #d98f86;           /* declined */
+  --wait: #c9b27c;         /* awaiting reply */
+
+  --blackletter: "Cloister Black", "Old English Text MT", serif;
+  --fell: "IM Fell English", "Iowan Old Style", Georgia, serif;
+  --caps: "IM Fell English SC", "IM Fell English", Georgia, serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body { background: var(--ink); color: var(--bone); font-family: var(--fell); font-size: 1.05rem; line-height: 1.5; -webkit-font-smoothing: antialiased; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+button, input { font: inherit; color: inherit; }
+:focus-visible { outline: 1px solid var(--brass); outline-offset: 3px; }
+.wrap { max-width: 1100px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.sc { font-family: var(--caps); letter-spacing: .1em; }
+
+header { border-bottom: 1px solid var(--line); }
+header .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding-block: 16px; }
+.title { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+.title h1 { font-family: var(--blackletter); font-weight: 400; font-size: 2.4rem; line-height: 1; margin: 0; color: var(--brass); }
+.title span { color: var(--bone-dim); font-size: .95rem; }
+.actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.updated { color: var(--bone-dim); font-size: .85rem; font-style: italic; }
+.btn { font-family: var(--caps); letter-spacing: .1em; font-size: .85rem; padding: 8px 16px; border: 1px solid var(--brass); background: transparent; color: var(--brass); cursor: pointer; }
+.btn:hover { background: color-mix(in srgb, var(--brass) 14%, transparent); }
+.btn.solid { background: var(--brass); color: var(--ink); }
+
+main .wrap { padding-block: 28px 64px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 28px; }
+
+.notice { padding: 12px 16px; border: 1px solid var(--brass-dim); background: color-mix(in srgb, var(--brass) 8%, transparent); color: var(--bone-dim); font-size: .95rem; }
+.notice b { color: var(--bone); font-weight: 400; }
+
+/* sign-in */
+.gate { max-width: 420px; margin: 40px auto; display: grid; gap: 12px; text-align: center; }
+.gate input { width: 100%; background: var(--panel); border: 1px solid var(--brass-dim); padding: 11px 12px; color: var(--bone); }
+.gate .err { color: var(--no); font-style: italic; min-height: 1.4em; }
+
+/* totals */
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); }
+.stat { background: var(--panel); padding: 18px 20px; display: grid; gap: 2px; }
+.stat .label { font-family: var(--caps); letter-spacing: .1em; font-size: .85rem; color: var(--bone-dim); display: flex; align-items: center; gap: 8px; }
+.stat .num { font-size: 2.6rem; line-height: 1.05; font-variant-numeric: lining-nums tabular-nums; }
+.stat .of { color: var(--bone-dim); font-size: .9rem; }
+.dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex: none; }
+.dot.yes { background: var(--yes); } .dot.no { background: var(--no); } .dot.wait { background: var(--wait); }
+
+.bar { display: flex; height: 8px; background: color-mix(in srgb, var(--bone) 8%, transparent); overflow: hidden; }
+.bar i { display: block; height: 100%; }
+.bar .yes { background: var(--yes); } .bar .no { background: var(--no); } .bar .wait { background: var(--wait); opacity: .55; }
+.barlegend { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 8px; font-size: .9rem; color: var(--bone-dim); }
+.barlegend span { display: inline-flex; align-items: center; gap: 6px; }
+
+/* controls */
+.controls { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip { font-family: var(--caps); letter-spacing: .08em; font-size: .85rem; padding: 6px 12px; border: 1px solid var(--brass-dim); background: transparent; color: var(--bone-dim); cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--brass); border-color: var(--brass); color: var(--ink); }
+.chip b { font-weight: 400; opacity: .75; margin-left: 4px; font-variant-numeric: tabular-nums; }
+.search { min-width: 0; flex: 1 1 220px; max-width: 320px; background: var(--panel); border: 1px solid var(--brass-dim); padding: 8px 12px; color: var(--bone); }
+
+/* ledger table */
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); }
+table { width: 100%; border-collapse: collapse; min-width: 720px; }
+th { text-align: left; font-family: var(--caps); font-weight: 400; letter-spacing: .1em; font-size: .82rem; color: var(--bone-dim); padding: 10px 14px; background: var(--panel); border-bottom: 1px solid var(--line); }
+td { padding: 12px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+.people { display: grid; gap: 4px; }
+.person { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.person em { color: var(--bone-dim); font-size: .85rem; }
+.pill { font-family: var(--caps); letter-spacing: .06em; font-size: .78rem; padding: 2px 8px; border: 1px solid currentColor; white-space: nowrap; }
+.pill.yes { color: var(--yes); } .pill.no { color: var(--no); } .pill.wait { color: var(--wait); } .pill.mixed { color: var(--bone-dim); }
+.muted { color: var(--bone-dim); font-style: italic; }
+.small { font-size: .92rem; }
+.when { white-space: nowrap; color: var(--bone-dim); font-size: .9rem; font-variant-numeric: tabular-nums; }
+.empty { padding: 28px; text-align: center; color: var(--bone-dim); font-style: italic; }
+
+/* notes */
+.notes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.notes section { border: 1px solid var(--line); background: var(--panel); padding: 16px 18px; min-width: 0; }
+.notes h2 { font-family: var(--caps); font-weight: 400; letter-spacing: .1em; font-size: .9rem; color: var(--brass); margin: 0 0 10px; }
+.notes ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.notes li { overflow-wrap: anywhere; }
+.notes li b { font-weight: 400; color: var(--bone-dim); display: block; font-size: .88rem; }
+
+@media (max-width: 760px) {
+  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .notes { grid-template-columns: minmax(0, 1fr); }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="title"><h1>RSVP Ledger</h1><span>Kylie &amp; Lucas · 10 · 30 · 2027</span></div>
+    <div class="actions">
+      <span class="updated" id="updated"></span>
+      <button class="btn" type="button" id="refresh" hidden>Refresh</button>
+      <button class="btn" type="button" id="signout" hidden>Lock</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="wrap">
+    <p class="notice" id="preview" hidden><b>Preview mode.</b> These are sample households so you can see how the ledger works. Once the Google Sheet is connected, your real guest list and replies appear here.</p>
+
+    <form class="gate" id="gate" hidden>
+      <p class="sc">Enter your ledger key to view replies</p>
+      <input type="password" id="key" autocomplete="current-password" aria-label="Ledger key">
+      <p class="err" id="gate-err" role="alert"></p>
+      <button class="btn solid" type="submit">Open ledger</button>
+    </form>
+
+    <div id="ledger" hidden>
+      <div class="stats" id="stats"></div>
+      <div>
+        <div class="bar" id="bar" aria-hidden="true"></div>
+        <div class="barlegend" id="barlegend"></div>
+      </div>
+
+      <div class="controls" style="margin-top:28px">
+        <div class="chips" id="chips" role="group" aria-label="Filter households"></div>
+        <input class="search" id="search" type="search" placeholder="Search a name" aria-label="Search guests">
+      </div>
+
+      <div class="tablewrap" style="margin-top:14px">
+        <table>
+          <thead><tr><th>Household</th><th>Status</th><th>Dietary</th><th>Note</th><th>Replied</th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+
+      <div class="notes" style="margin-top:28px">
+        <section><h2>Dietary needs</h2><ul id="diet-list"></ul></section>
+        <section><h2>Notes from guests</h2><ul id="note-list"></ul></section>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+(function () {
+  // ---- Paste the same Google Apps Script web app URL as on the RSVP page (see SETUP.md). ----
+  var API_URL = "https://script.google.com/macros/s/AKfycbyZXxgRymnN4wTV06PSpc8GODmigc2z3iJ8CK8YsykOL-FmxfDug3vQvi9fyweo0ajR/exec";
+  var DEMO = !API_URL;
+
+  // Sample ledger for preview mode only.
+  var SAMPLE = { updated: new Date().toISOString(), parties: [
+    { party: "1", plusOneAllowed: false, repliedAt: "2027-06-02T14:10:00Z", note: "Can't wait!",
+      guests: [{ first: "Jane", last: "Smith", status: "attending" }, { first: "Mark", last: "Smith", status: "attending", dietary: "Shellfish allergy" }] },
+    { party: "2", plusOneAllowed: true, repliedAt: "2027-06-09T19:42:00Z", note: "",
+      guests: [{ first: "Alex", last: "Rivera", status: "attending" }, { first: "Sam", last: "Ortiz", status: "attending", plusOne: true }] },
+    { party: "3", plusOneAllowed: false, repliedAt: null, note: "",
+      guests: [{ first: "Priya", last: "Shah", status: "pending" }, { first: "Dev", last: "Shah", status: "pending" }, { first: "Asha", last: "Shah", status: "pending", child: true }] },
+    { party: "4", plusOneAllowed: false, repliedAt: "2027-07-01T11:05:00Z", note: "So sorry to miss it. Sending love.",
+      guests: [{ first: "Morgan", last: "Lee", status: "declined" }] },
+    { party: "5", plusOneAllowed: true, repliedAt: null, note: "",
+      guests: [{ first: "Theo", last: "Grant", status: "pending" }] },
+    { party: "6", plusOneAllowed: false, repliedAt: "2027-07-15T21:30:00Z", note: "",
+      guests: [{ first: "Nora", last: "Quinn", status: "attending", dietary: "Vegetarian" }, { first: "Eli", last: "Quinn", status: "declined" }] }
+  ]};
+
+  var $ = function (id) { return document.getElementById(id); };
+  var data = null, filter = "all", query = "";
+  var KEY_STORE = "kl-ledger-key";
+
+  function getKey() { try { return localStorage.getItem(KEY_STORE) || ""; } catch (e) { return ""; } }
+  function setKey(k) { try { k ? localStorage.setItem(KEY_STORE, k) : localStorage.removeItem(KEY_STORE); } catch (e) {} }
+
+  function load(key) {
+    if (DEMO) return Promise.resolve(SAMPLE);
+    return fetch(API_URL, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ action: "admin", key: key }) })
+      .then(function (r) { return r.json(); });
+  }
+
+  function partyStatus(p) {
+    var invited = p.guests.filter(function (g) { return !g.plusOne; });
+    if (invited.every(function (g) { return g.status === "pending"; })) return "wait";
+    var yes = p.guests.some(function (g) { return g.status === "attending"; });
+    var no = invited.some(function (g) { return g.status === "declined"; });
+    return yes && no ? "mixed" : yes ? "yes" : "no";
+  }
+  // A household shows under every filter that applies to someone in it.
+  function matches(p, f) {
+    var want = { yes: "attending", no: "declined", wait: "pending" }[f];
+    return p.guests.some(function (g) { return g.status === want; });
+  }
+  function dietOf(p) {
+    return p.guests.filter(function (g) { return g.dietary; }).map(function (g) { return g.first + ": " + g.dietary; }).join("; ");
+  }
+  var STATUS_TEXT = { yes: "Attending", no: "Declined", wait: "Awaiting", mixed: "Partly attending" };
+  var GUEST_TEXT = { attending: ["yes", "Attending"], declined: ["no", "Declined"], pending: ["wait", "Awaiting"] };
+
+  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+  function fmtDate(iso) { if (!iso) return "—"; var d = new Date(iso); return isNaN(d) ? "—" : d.toLocaleDateString(undefined, { month: "short", day: "numeric" }); }
+
+  function render() {
+    var all = data.parties;
+    var people = [].concat.apply([], all.map(function (p) { return p.guests; }));
+    var invited = people.filter(function (g) { return !g.plusOne; });
+    var yes = people.filter(function (g) { return g.status === "attending"; }).length;
+    var no = invited.filter(function (g) { return g.status === "declined"; }).length;
+    var wait = invited.filter(function (g) { return g.status === "pending"; }).length;
+    var replied = all.filter(function (p) { return partyStatus(p) !== "wait"; }).length;
+    var plusOnes = people.filter(function (g) { return g.plusOne; }).length;
+
+    var stats = $("stats"); stats.textContent = "";
+    [
+      ["yes", "Attending", yes, plusOnes ? "including " + plusOnes + " guest" + (plusOnes > 1 ? "s" : "") : "guests"],
+      ["no", "Declined", no, "guests"],
+      ["wait", "Awaiting reply", wait, "of " + invited.length + " invited"],
+      [null, "Households replied", replied, "of " + all.length]
+    ].forEach(function (s) {
+      var d = el("div", "stat");
+      var l = el("div", "label"); if (s[0]) l.append(el("i", "dot " + s[0])); l.append(document.createTextNode(s[1]));
+      d.append(l, el("div", "num", s[2]), el("div", "of", s[3]));
+      stats.append(d);
+    });
+
+    var total = yes + no + wait || 1;
+    var bar = $("bar"); bar.textContent = "";
+    [["yes", yes], ["no", no], ["wait", wait]].forEach(function (b) { var i = el("i", b[0]); i.style.width = (b[1] / total * 100) + "%"; bar.append(i); });
+    var lg = $("barlegend"); lg.textContent = "";
+    [["yes", "Attending", yes], ["no", "Declined", no], ["wait", "Awaiting", wait]].forEach(function (b) {
+      var s = el("span"); s.append(el("i", "dot " + b[0]), document.createTextNode(b[1] + " " + Math.round(b[2] / total * 100) + "%")); lg.append(s);
+    });
+
+    var counts = { all: all.length, yes: 0, no: 0, wait: 0 };
+    all.forEach(function (p) { ["yes", "no", "wait"].forEach(function (k) { if (matches(p, k)) counts[k]++; }); });
+    var chips = $("chips"); chips.textContent = "";
+    [["all", "All"], ["yes", "Attending"], ["no", "Declined"], ["wait", "Awaiting"]].forEach(function (c) {
+      var b = el("button", "chip", c[1]); b.type = "button"; b.setAttribute("aria-pressed", String(filter === c[0]));
+      b.append(el("b", null, counts[c[0]]));
+      b.addEventListener("click", function () { filter = c[0]; render(); });
+      chips.append(b);
+    });
+
+    var q = query.toLowerCase();
+    var shown = all.filter(function (p) {
+      if (filter !== "all" && !matches(p, filter)) return false;
+      if (!q) return true;
+      return p.guests.some(function (g) { return (g.first + " " + g.last).toLowerCase().indexOf(q) !== -1; });
+    });
+    shown.sort(function (a, b) { return (b.repliedAt || "").localeCompare(a.repliedAt || ""); });
+
+    var tbody = $("rows"); tbody.textContent = "";
+    if (!shown.length) {
+      var tr = el("tr"); var td = el("td", "empty", all.length ? "No households match." : "Your guest list is empty. Add guests to the Guest List tab in your Google Sheet."); td.colSpan = 5; tr.append(td); tbody.append(tr);
+    }
+    shown.forEach(function (p) {
+      var tr = el("tr");
+      var ppl = el("div", "people");
+      p.guests.forEach(function (g) {
+        var row = el("div", "person");
+        var t = GUEST_TEXT[g.status] || GUEST_TEXT.pending;
+        row.append(el("i", "dot " + t[0]), document.createTextNode(g.first + " " + g.last));
+        if (g.plusOne) row.append(el("em", null, "guest"));
+        if (g.child) row.append(el("em", null, "child"));
+        ppl.append(row);
+      });
+      if (p.plusOneAllowed && !p.guests.some(function (g) { return g.plusOne; }) && partyStatus(p) !== "wait") ppl.append(el("div", "muted small", "Plus-one not used"));
+      else if (p.plusOneAllowed && partyStatus(p) === "wait") ppl.append(el("div", "muted small", "Plus-one allowed"));
+      var st = partyStatus(p);
+      var tdS = el("td"); tdS.append(el("span", "pill " + st, STATUS_TEXT[st]));
+      var td1 = el("td"); td1.append(ppl);
+      tr.append(td1, tdS, el("td", dietOf(p) ? "small" : "muted small", dietOf(p) || "—"), el("td", p.note ? "small" : "muted small", p.note || "—"), el("td", "when", fmtDate(p.repliedAt)));
+      tbody.append(tr);
+    });
+
+    var dl = $("diet-list"); dl.textContent = "";
+    var diets = [].concat.apply([], all.map(function (p) { return p.guests.filter(function (g) { return g.dietary && g.status === "attending"; }); }));
+    if (!diets.length) dl.append(el("li", "muted", "No dietary needs yet."));
+    diets.forEach(function (g) { var li = el("li"); li.append(el("b", null, g.first + " " + g.last), document.createTextNode(g.dietary)); dl.append(li); });
+
+    function fill(listId, field, emptyText) {
+      var ul = $(listId); ul.textContent = "";
+      var items = all.filter(function (p) { return p[field]; });
+      if (!items.length) { ul.append(el("li", "muted", emptyText)); return; }
+      items.forEach(function (p) {
+        var li = el("li"); li.append(el("b", null, p.guests.map(function (g) { return g.first; }).join(", ")), document.createTextNode(p[field])); ul.append(li);
+      });
+    }
+    fill("note-list", "note", "No notes yet.");
+
+    $("updated").textContent = "Updated " + new Date(data.updated).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  }
+
+  function open(key) {
+    $("gate-err").textContent = "";
+    return load(key).then(function (res) {
+      if (!res || res.error) {
+        setKey("");
+        $("gate").hidden = false; $("ledger").hidden = true;
+        $("gate-err").textContent = res && res.error === "unauthorized" ? "That key didn't match. Check the ADMIN_KEY in your Apps Script." : "Couldn't reach the Google Sheet. Check the web app URL.";
+        return;
+      }
+      data = res;
+      $("gate").hidden = true; $("ledger").hidden = false; $("refresh").hidden = false; $("signout").hidden = DEMO;
+      render();
+    }).catch(function () {
+      $("gate").hidden = false; $("ledger").hidden = true;
+      $("gate-err").textContent = "Couldn't reach the Google Sheet. Check your connection and the web app URL.";
+    });
+  }
+
+  $("gate").addEventListener("submit", function (e) { e.preventDefault(); var k = $("key").value.trim(); if (!k) return; setKey(k); open(k); });
+  $("refresh").addEventListener("click", function () { open(getKey()); });
+  $("signout").addEventListener("click", function () { setKey(""); data = null; $("ledger").hidden = true; $("refresh").hidden = true; $("signout").hidden = true; $("gate").hidden = false; $("key").value = ""; });
+  $("search").addEventListener("input", function () { query = this.value.trim(); render(); });
+
+  if (DEMO) { $("preview").hidden = false; open(""); }
+  else if (getKey()) open(getKey());
+  else $("gate").hidden = false;
+})();
+</script>
+</body>
+</html>
