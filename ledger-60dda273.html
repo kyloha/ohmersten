@@ -227,18 +227,29 @@ tr:last-child td { border-bottom: 0; }
     var all = data.parties;
     var people = [].concat.apply([], all.map(function (p) { return p.guests; }));
     var invited = people.filter(function (g) { return !g.plusOne; });
-    var yes = people.filter(function (g) { return g.status === "attending"; }).length;
-    var no = invited.filter(function (g) { return g.status === "declined"; }).length;
-    var wait = invited.filter(function (g) { return g.status === "pending"; }).length;
     var replied = all.filter(function (p) { return partyStatus(p) !== "wait"; }).length;
     var plusOnes = people.filter(function (g) { return g.plusOne; }).length;
 
+    // Seats: every named guest plus every plus-one spot, used or not, so the total matches the venue headcount.
+    var guestSpots = all.filter(function (p) { return p.plusOneAllowed; }).length;
+    var seats = invited.length + guestSpots;
+    var unusedSpots = 0, pendingSpots = 0;
+    all.forEach(function (p) {
+      if (!p.plusOneAllowed) return;
+      var used = p.guests.some(function (g) { return g.plusOne; });
+      if (partyStatus(p) === "wait") pendingSpots++; else if (!used) unusedSpots++;
+    });
+    var yes = people.filter(function (g) { return g.status === "attending"; }).length;
+    var no = invited.filter(function (g) { return g.status === "declined"; }).length + unusedSpots;
+    var wait = invited.filter(function (g) { return g.status === "pending"; }).length + pendingSpots;
+    var kids = invited.filter(function (g) { return g.child; }).length;
+
     var stats = $("stats"); stats.textContent = "";
     [
-      ["yes", "Attending", yes, plusOnes ? "including " + plusOnes + " guest" + (plusOnes > 1 ? "s" : "") : "guests"],
-      ["no", "Declined", no, "guests"],
-      ["wait", "Awaiting reply", wait, "of " + invited.length + " invited"],
-      [null, "Households replied", replied, "of " + all.length]
+      [null, "Invited seats", seats, invited.length + " named" + (guestSpots ? " + " + guestSpots + " guest spot" + (guestSpots > 1 ? "s" : "") : "") + (kids ? " · " + kids + " kid" + (kids > 1 ? "s" : "") : "")],
+      ["yes", "Attending", yes, plusOnes ? "including " + plusOnes + " guest" + (plusOnes > 1 ? "s" : "") : "seats"],
+      ["no", "Declined", no, unusedSpots ? "including " + unusedSpots + " unused guest spot" + (unusedSpots > 1 ? "s" : "") : "seats"],
+      ["wait", "Awaiting reply", wait, replied + " of " + all.length + " invitations replied"]
     ].forEach(function (s) {
       var d = el("div", "stat");
       var l = el("div", "label"); if (s[0]) l.append(el("i", "dot " + s[0])); l.append(document.createTextNode(s[1]));
